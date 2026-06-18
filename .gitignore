@@ -1,0 +1,38 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment
+.env
+.venv/
+venv/
+conda/
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Data
+data/
+datasets/
+
+# Model weights / checkpoints
+cards/
+cards_c10c/
+checkpoints/
+outputs/
+runs/
+wandb/
+
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.tar.gz
+*.zip
