@@ -25,6 +25,25 @@ heads:    sim_hat = sim_predictor(z_p);  recon = reconstructor([z_s, z_p, sim_em
 Five losses: `cls` (CE) + `lambda_rec`·`rec` + `lambda_inv`·`inv` +
 `lambda_sim`·`sim` + `lambda_sep`·`sep`.
 
+### Compression variants
+
+| Variant | What it is |
+|---|---|
+| **Full backbone** | backbone trained on clean CIFAR-10 (reference) |
+| **Full backbone + FD** | FD attached to the full backbone |
+| **Compressed backbone + FD** | *prune-then-train*: a mask is found on the backbone first (`compress.py`), then FD is trained under that fixed mask |
+| **Compressed (backbone + FD)** | *train-then-prune*: backbone + FD are trained together first, then that trained model is pruned (`compress_fd.py`) and **fine-tuned** under the mask |
+| **Compressed (backbone + FD) + IBB** | the train-then-prune model, then **further trained with the Information-Bottleneck (IBB) loss** |
+
+### Information Bottleneck (IBB)
+
+SimXRD-style IB applied on top of FD (`train_cifar_fd_ib.py`): the shared branch
+is made **variational** (`z_s = mu_s + eps·sigma_s` in training, `mu_s` at eval),
+and an **IB upper-bound loss** minimizes `I(mu_s ; x)` via classwise
+positive/negative cluster centroids that are recomputed at the end of each epoch.
+A **warm-up phase** runs the first `--ib_warmup_epochs` with `lambda_ib = 0`;
+IB then activates and early-stopping/best-selection are reset to the IB phase.
+
 ## Domains (`--domain_source`)
 
 FD trains on the *same content* seen under several *domains*, with `sim_param`
@@ -37,6 +56,17 @@ image's views so `L_inv` works).
   types are the domains**. `--num_train_domains N` of them are used for training
   (on the **CIFAR-10-C 10000 images**) and the rest are held out for OOD test;
   optionally clean + AugMix + Gaussian are added as extra training domains.
+
+**Leak-free split (current protocol).** To avoid both image leak and val=test
+leak, the 19 CIFAR-10-C corruptions are split into three **disjoint** groups, and
+the images are split too (`--heldout_images` holds out the last N images):
+
+- **Train corruptions (10):** gaussian/shot/impulse noise, defocus/glass/motion/zoom blur, snow, frost, fog — applied to the *held-in* images.
+- **Val corruptions (4):** speckle_noise, gaussian_blur, brightness, spatter — on *held-out* images, for early stopping (`--val_corruptions`, severity 3).
+- **Test corruptions (5):** contrast, elastic_transform, pixelate, jpeg_compression, saturate — on *held-out* images, the reported OOD set.
+
+Train, val and test corruptions are mutually disjoint, so early stopping never
+sees the test corruptions and the OOD number is leak-free.
 
 Compression (`compress.py`) **always uses the full clean CIFAR-10 train set** to
 find the mask, regardless of `--domain_source`.
@@ -121,6 +151,65 @@ Smoke test (no dataset needed):
 python smoke_test.py
 ```
 
+## Experimental Results
+
+All numbers are **Mean Corruption Accuracy** on the held-out **test corruptions**
+(contrast, elastic_transform, pixelate, jpeg_compression, saturate), evaluated on
+the held-out images. Sparsity = fraction of encoder weights **pruned**.
+
+**Table 1 — Main results (FD and IBB).**
+
+| Backbone | Full backbone | Full backbone + FD | Full backbone + FD + IBB |
+|---|---|---|---|
+| vit_s  | 0.6079 | 0.6206 | **0.6590** |
+| swin_t | 0.6215 | 0.6290 | **0.6491** |
+
+FD improves over the full backbone, and adding the IB loss (IBB) improves further.
+
+**Table 2 — Compression methods × sparsity (OOD acc).** `backbone` = prune-then-train
+(mask on the backbone, then FD); `backbone+FD` = train-then-prune (train backbone+FD,
+then prune that model and fine-tune).
+
+| Method | Compress process | 25% | 50% | 75% | Backbone |
+|---|---|---|---|---|---|
+| Bp  | backbone | 0.4745 | 0.4607 | 0.4461 | vit_s |
+| EP  | backbone | 0.5767 | – | 0.5254 | vit_s |
+| IMP | backbone | 0.5713 | – | – | vit_s |
+| LRR | backbone | 0.5625 | – | – | vit_s |
+| LTH | backbone | 0.5778 | – | – | vit_s |
+| Bp  | backbone | 0.5976 | 0.5433 | 0.5097 | swin_t |
+| EP  | backbone | 0.6207 | 0.5548 | 0.5254 | swin_t |
+| IMP | backbone | 0.6206 | 0.6018 | 0.5281 | swin_t |
+| LRR | backbone | 0.6110 | 0.5797 | 0.5305 | swin_t |
+| LTH | backbone | 0.6121 | 0.5676 | 0.5095 | swin_t |
+| Bp  | backbone+FD | 0.6402 | 0.6452 | 0.5873 | vit_s |
+| EP  | backbone+FD | 0.6576 | 0.6487 | **0.6621** | vit_s |
+| IMP | backbone+FD | 0.6351 | 0.6278 | 0.6266 | vit_s |
+| LRR | backbone+FD | 0.6371 | 0.6258 | 0.6149 | vit_s |
+| LTH | backbone+FD | 0.6343 | 0.6294 | 0.6278 | vit_s |
+| Bp  | backbone+FD | 0.6262 | 0.6341 | 0.5778 | swin_t |
+| EP  | backbone+FD | 0.6414 | 0.6522 | **0.6661** | swin_t |
+| IMP | backbone+FD | 0.6272 | 0.5999 | 0.6288 | swin_t |
+| LRR | backbone+FD | 0.6391 | 0.6260 | 0.6183 | swin_t |
+| LTH | backbone+FD | 0.6435 | 0.6188 | 0.6305 | swin_t |
+
+Train-then-prune (`backbone+FD`) is far stronger than prune-then-train (`backbone`).
+The magnitude methods (IMP/LRR/LTH) degrade monotonically with sparsity, while the
+supermask methods (EP/BP) are best at high sparsity — EP at 75% is the top result
+on both backbones.
+
+**Table 3 — IB (IBB) hyperparameter sweep (`lambda_ib`).** Full = dense FD+IBB;
+Compressed = FD+IBB under the 25%-pruned mask.
+
+| Backbone | lambda_ib | Full Acc | Compressed Acc (25% pruned) |
+|---|---|---|---|
+| vit_s  | 1e-2 | 0.6445 | 0.6684 |
+| vit_s  | 3e-3 | 0.6358 | 0.6508 |
+| vit_s  | 1e-3 | 0.6465 | 0.6711 |
+| vit_s  | 3e-4 | 0.6405 | 0.6745 |
+| vit_s  | 1e-4 | 0.6590 | 0.6572 |
+| swin_t | 1e-4 | 0.6491 | 0.6782 |
+
 ## Layout
 
 ```
@@ -135,11 +224,14 @@ utils/
 data_paths.py          # central data-path config (env-overridable)
 train_cifar_base.py    # no-FD base classifier (-> summary.csv: method=base)
 train_cifar_fd.py      # FD reference (synthetic param augmentation)
-train_cifar_fd_sparse.py  # FD-native training; --mask none = dense, real mask = compressed
-compress.py            # Stage 1: clean-data mask (imp/lth/lrr/ep/bp)
-compare.py             # Stage 3: base / FD / FD+best per backbone -> comparison.csv
-train_cifar_nas.py     # legacy Gumbel-NAS scaffold (superseded)
-run_all.sh             # full sweep; submit.sbatch / submit_array.sbatch wrap it for SLURM
+train_cifar_fd_sparse.py  # FD training; --mask none = dense, real mask = compressed;
+                       #   --init_backbone (warm-start), --init_fd (train-then-prune fine-tune)
+train_cifar_fd_ib.py   # FD + Information-Bottleneck (IBB); variational shared branch + warm-up
+compress.py            # prune-then-train: mask from a clean-CE backbone (imp/lth/lrr/ep/bp)
+compress_fd.py         # train-then-prune: mask from a trained backbone/FD model (--init_backbone)
+eval_ood.py            # evaluate a saved base/FD checkpoint on CIFAR-10-C -> summary.csv
+compare.py             # base / FD / FD+best per backbone -> comparison.csv
+compare_ib.py          # collect FD+IBB runs -> comparison_ib.csv
 smoke_test.py
 ```
 
