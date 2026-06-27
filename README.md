@@ -203,11 +203,15 @@ Compressed = FD+IBB under the 25%-pruned mask.
 
 | Backbone | lambda_ib | Full Acc | Compressed Acc (25% pruned) |
 |---|---|---|---|
-| vit_s  | 1e-2 | 0.6445 | 0.6684 |
-| vit_s  | 3e-3 | 0.6358 | 0.6508 |
-| vit_s  | 1e-3 | 0.6465 | 0.6711 |
-| vit_s  | 3e-4 | 0.6405 | 0.6745 |
-| vit_s  | 1e-4 | 0.6590 | 0.6572 |
+| vit_s & 1e-2 & 0.6445 & 0.6684 |
+| vit_s & 3e-3 & 0.6358 & 0.6508 |
+| vit_s | 1e-3 | 0.6465 | 0.6711 |
+| vit_s | 3e-4 | 0.6405 | 0.6745 |
+| vit_s | 1e-4 | 0.6590 | 0.6572 |
+| swin_t | 1e-2 | 0.6597 | 0.674 |
+| swin_t | 3e-3 | 0.6484 | 0.6741 |
+| swin_t | 1e-3 | 0.6491 | 0.6597 |
+| swin_t | 3e-4 | 0.6484 | 0.6763 |
 | swin_t | 1e-4 | 0.6491 | 0.6782 |
 
 ## Layout
@@ -232,7 +236,6 @@ compress_fd.py         # train-then-prune: mask from a trained backbone/FD model
 eval_ood.py            # evaluate a saved base/FD checkpoint on CIFAR-10-C -> summary.csv
 compare.py             # base / FD / FD+best per backbone -> comparison.csv
 compare_ib.py          # collect FD+IBB runs -> comparison_ib.csv
-smoke_test.py
 ```
 
 ## Backbone notes
