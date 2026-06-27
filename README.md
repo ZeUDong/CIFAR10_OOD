@@ -203,8 +203,8 @@ Compressed = FD+IBB under the 25%-pruned mask.
 
 | Backbone | lambda_ib | Full Acc | Compressed Acc (25% pruned) |
 |---|---|---|---|
-| vit_s ｜ 1e-2 | 0.6445 | 0.6684 |
-| vit_s ｜ 3e-3 | 0.6358 | 0.6508 |
+| vit_s | 1e-2 | 0.6445 | 0.6684 |
+| vit_s | 3e-3 | 0.6358 | 0.6508 |
 | vit_s | 1e-3 | 0.6465 | 0.6711 |
 | vit_s | 3e-4 | 0.6405 | 0.6745 |
 | vit_s | 1e-4 | 0.6590 | 0.6572 |
