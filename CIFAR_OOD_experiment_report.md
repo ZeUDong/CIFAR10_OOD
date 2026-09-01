@@ -171,9 +171,9 @@ The report considers representative robustness methods that can serve as base st
 | ViT-S | 0.8901 | 0.8522 | 0.7853 |
 | Swin-T | 0.8921 | 0.8605 | 0.7712 |
 
-#### Full Backbone + IBB vs. EP 25%
+#### Full Backbone + IBB vs. EP 
 
-| Backbone | Full Backbone + IBB | Full Backbone + IBB (EP 25%) | Full Backbone + IBB (EP 25%) |
+| Backbone | Full Backbone + IBB | Full Backbone + IBB (EP 25%) | Full Backbone + IBB (EP 50%) |
 |---|---:|---:| ---:|
 | ViT-S | 0.8892 | 0.8683 | 0.5003|
 | Swin-T | 0.8672 | 0.8374 | 0.7267 |
